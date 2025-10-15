@@ -12,7 +12,7 @@ export default {
         }
         let subConfig = env.SUBCONFIG || 'https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/ACL4SSR_Online_Mini_MultiMode.ini';
         const proxyIP = env.PROXYIP || null;
-        let ips = ['3Q.bestip-one.cf.090227.xyz#感谢白嫖哥t.me/bestip_one'];
+        let ips = ['3Q.bestip-one.cf.090227.xyz#加入我的频道t.me/CMLiussss解锁更多优选节点'];
         if (env.ADD) ips = await 整理成数组(env.ADD);
         let FileName = env.SUBNAME || 'BPSUB';
         let EndPS = env.PS || '';
