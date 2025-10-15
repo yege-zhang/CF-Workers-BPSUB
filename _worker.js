@@ -40,7 +40,7 @@ export default {
             value: `${subProtocol}://${subConverter.toLowerCase()}`
         }, {
             label: '🔄 CM提供-负载均衡后端',
-            value: 'https://subapi.cmliussss.net'
+            value: 'https://subapi.090227.xyz'
         }, {
             label: '⚖️ Lfree提供-负载均衡后端',
             value: 'https://api.sub.zaoy.cn'
@@ -2398,9 +2398,12 @@ async function subHtml(request, hostLength = 0, FileName, subProtocol, subConver
         
         // 加载JSON配置
         async function loadJsonConfigs() {
+            // 添加时间戳参数避免浏览器缓存
+            const timestamp = Date.now();
+            
             try {
                 // 加载subapi.json
-                const subApiResponse = await fetch('/subapi.json');
+                const subApiResponse = await fetch('/subapi.json?t=' + timestamp);
                 if (subApiResponse.ok) {
                     subApiData = await subApiResponse.json();
                     populateSubApiSelect();
@@ -2415,7 +2418,7 @@ async function subHtml(request, hostLength = 0, FileName, subProtocol, subConver
             
             try {
                 // 加载subconfig.json
-                const subConfigResponse = await fetch('/subconfig.json');
+                const subConfigResponse = await fetch('/subconfig.json?t=' + timestamp);
                 if (subConfigResponse.ok) {
                     subConfigData = await subConfigResponse.json();
                     populateSubConfigSelect();
