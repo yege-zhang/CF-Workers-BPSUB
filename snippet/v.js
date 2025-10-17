@@ -89,8 +89,8 @@ async function handleSPESSWebSocket(request, config) {
         ProxyIP,
         ProxyPort
     } = config;
-    const wsPair = new WebSocketPair();
-    const [clientWS, serverWS] = Object.values(wsPair);
+    const ws配对 = new WebSocketPair();
+    const [clientWS, serverWS] = Object.values(ws配对);
 
     serverWS.accept();
 
@@ -585,7 +585,7 @@ async function httpConnect(addressType, addressRemote, portRemote, socks5Address
 
     return sock;
 }
-async function handleUDPOutBound(webSocket, vlessResponseHeader) {
+async function handleUDPOutBound(webSocket, 协议响应头) {
     let isVlessHeaderSent = false;
     const transformStream = new TransformStream({
         start(controller) {
@@ -623,7 +623,7 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader) {
                 if (isVlessHeaderSent) {
                     webSocket.send(await new Blob([udpSizeBuffer, dnsQueryResult]).arrayBuffer());
                 } else {
-                    webSocket.send(await new Blob([vlessResponseHeader, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
+                    webSocket.send(await new Blob([协议响应头, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
                     isVlessHeaderSent = true;
                 }
             }
