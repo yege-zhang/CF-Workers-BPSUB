@@ -6,15 +6,7 @@ export default {
             // 检查是否为 WebSocket 升级请求
             const upgradeHeader = request.headers.get('Upgrade');
             if (upgradeHeader !== 'websocket') {
-                // 将 request.cf 对象转换为 JSON 字符串
-                const jsonData = JSON.stringify(request.cf, null, 2); // 使用2个空格缩进，使输出更易读
-                // 创建 Response 对象，设置正确的 Content-Type 头
-                return new Response(jsonData, {
-                    status: 200,
-                    headers: {
-                        'Content-Type': 'application/json;charset=UTF-8' // 标准 JSON 内容类型[6,7](@ref)
-                    }
-                });
+                return new Response('Hello World!', { status: 200 });
             } else {
                 let socks5Address = url.searchParams.get('socks5') || url.searchParams.get('http') || null;
                 let parsedSocks5Address = {};
@@ -89,8 +81,8 @@ async function handleSPESSWebSocket(request, config) {
         ProxyIP,
         ProxyPort
     } = config;
-    const wsPair = new WebSocketPair();
-    const [clientWS, serverWS] = Object.values(wsPair);
+    const ws配对 = new WebSocketPair();
+    const [clientWS, serverWS] = Object.values(ws配对);
 
     serverWS.accept();
 
@@ -585,7 +577,7 @@ async function httpConnect(addressType, addressRemote, portRemote, socks5Address
 
     return sock;
 }
-async function handleUDPOutBound(webSocket, vlessResponseHeader) {
+async function handleUDPOutBound(webSocket, 协议响应头) {
     let isVlessHeaderSent = false;
     const transformStream = new TransformStream({
         start(controller) {
@@ -623,7 +615,7 @@ async function handleUDPOutBound(webSocket, vlessResponseHeader) {
                 if (isVlessHeaderSent) {
                     webSocket.send(await new Blob([udpSizeBuffer, dnsQueryResult]).arrayBuffer());
                 } else {
-                    webSocket.send(await new Blob([vlessResponseHeader, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
+                    webSocket.send(await new Blob([协议响应头, udpSizeBuffer, dnsQueryResult]).arrayBuffer());
                     isVlessHeaderSent = true;
                 }
             }

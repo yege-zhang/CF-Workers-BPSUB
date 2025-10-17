@@ -194,6 +194,7 @@ async function handleWebSocket(request) {
             // UUID验证
             if (FIXED_UUID) {
                 const uuidBytes = new Uint8Array(data.slice(1, 17));
+                // @ts-ignore
                 const expectedUUID = FIXED_UUID.replace(/-/g, '');
                 for (let i = 0; i < 16; i++) {
                     if (uuidBytes[i] !== parseInt(expectedUUID.substr(i * 2, 2), 16)) return;
