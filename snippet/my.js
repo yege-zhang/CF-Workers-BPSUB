@@ -290,7 +290,7 @@ async function handleWebSocket(request) {
                     } else if (启用SOCKS5反代 == 'http') {
                         sock = await httpConnect(addr, port);
                     } else {
-                        const [反代IP地址, 反代IP端口] = await 解析地址端口(proxyIP);
+                        const [反代IP地址, 反代IP端口] = await 解析地址端口(反代IP);
                         sock = connect({ hostname: 反代IP地址, port: 反代IP端口 });
                     }
                 }
