@@ -142,7 +142,7 @@ const handle = ws => {
   };
   const establish = async sp => {
     try {
-      sp = await sp; await sock.opened; w = sock.writable.getWriter(); r = sock.readable.getReader(); const bt = pend.splice(0, 10);
+      sock = await sp; await sock.opened; w = sock.writable.getWriter(); r = sock.readable.getReader(); const bt = pend.splice(0, 10);
       for (const b of bt) { await w.write(b); pendBytes -= b.length; pool.free(b); }
       conn = false; reconns = 0; score = Math.min(1.0, score + 0.15); succ++; lastAct = Date.now(); readLoop();
     } catch (e) { conn = false; fail++; score = Math.max(0.1, score - 0.2); reconn(); }
@@ -205,6 +205,7 @@ const handle = ws => {
         } else {
           try {
             sp = connect({ hostname: host, port });
+            await sp.opened;
           } catch {
             if (启用SOCKS5反代 == 'socks5') {
               sp = await socks5Connect(host, port);
@@ -216,6 +217,7 @@ const handle = ws => {
             }
           }
         }
+        await sp.opened;
         if (payload.length) { const buf = pool.alloc(payload.length); buf.set(payload); pend.push(buf); pendBytes += buf.length; } startTmrs(); establish(sp);
       } else {
         lastAct = Date.now();
@@ -227,138 +229,138 @@ const handle = ws => {
 };
 
 async function 获取SOCKS5账号(address) {
-    const lastAtIndex = address.lastIndexOf("@");
-    let [latter, former] = lastAtIndex === -1 ? [address, undefined] : [address.substring(lastAtIndex + 1), address.substring(0, lastAtIndex)];
-    let username, password, hostname, port;
-    if (former) {
-        const formers = former.split(":");
-        if (formers.length !== 2) {
-            throw new Error('无效的 SOCKS 地址格式：认证部分必须是 "username:password" 的形式');
-        }
-        [username, password] = formers;
+  const lastAtIndex = address.lastIndexOf("@");
+  let [latter, former] = lastAtIndex === -1 ? [address, undefined] : [address.substring(lastAtIndex + 1), address.substring(0, lastAtIndex)];
+  let username, password, hostname, port;
+  if (former) {
+    const formers = former.split(":");
+    if (formers.length !== 2) {
+      throw new Error('无效的 SOCKS 地址格式：认证部分必须是 "username:password" 的形式');
     }
-    const latters = latter.split(":");
-    if (latters.length > 2 && latter.includes("]:")) {
-        port = Number(latter.split("]:")[1].replace(/[^\d]/g, ''));
-        hostname = latter.split("]:")[0] + "]";
-    } else if (latters.length === 2) {
-        port = Number(latters.pop().replace(/[^\d]/g, ''));
-        hostname = latters.join(":");
-    } else {
-        port = 80;
-        hostname = latter;
-    }
+    [username, password] = formers;
+  }
+  const latters = latter.split(":");
+  if (latters.length > 2 && latter.includes("]:")) {
+    port = Number(latter.split("]:")[1].replace(/[^\d]/g, ''));
+    hostname = latter.split("]:")[0] + "]";
+  } else if (latters.length === 2) {
+    port = Number(latters.pop().replace(/[^\d]/g, ''));
+    hostname = latters.join(":");
+  } else {
+    port = 80;
+    hostname = latter;
+  }
 
-    if (isNaN(port)) {
-        throw new Error('无效的 SOCKS 地址格式：端口号必须是数字');
-    }
-    const regex = /^\[.*\]$/;
-    if (hostname.includes(":") && !regex.test(hostname)) {
-        throw new Error('无效的 SOCKS 地址格式：IPv6 地址必须用方括号括起来，如 [2001:db8::1]');
-    }
-    return { username, password, hostname, port };
+  if (isNaN(port)) {
+    throw new Error('无效的 SOCKS 地址格式：端口号必须是数字');
+  }
+  const regex = /^\[.*\]$/;
+  if (hostname.includes(":") && !regex.test(hostname)) {
+    throw new Error('无效的 SOCKS 地址格式：IPv6 地址必须用方括号括起来，如 [2001:db8::1]');
+  }
+  return { username, password, hostname, port };
 }
 async function 解析地址端口(proxyIP) {
-    proxyIP = proxyIP.toLowerCase();
-    let 地址 = proxyIP, 端口 = 443;
-    if (proxyIP.includes('.tp')) {
-        const tpMatch = proxyIP.match(/\.tp(\d+)/);
-        if (tpMatch) 端口 = parseInt(tpMatch[1], 10);
-        return [地址, 端口];
-    }
-    if (proxyIP.includes(']:')) {
-        const parts = proxyIP.split(']:');
-        地址 = parts[0] + ']';
-        端口 = parseInt(parts[1], 10) || 端口;
-    } else if (proxyIP.includes(':') && !proxyIP.startsWith('[')) {
-        const colonIndex = proxyIP.lastIndexOf(':');
-        地址 = proxyIP.slice(0, colonIndex);
-        端口 = parseInt(proxyIP.slice(colonIndex + 1), 10) || 端口;
-    }
+  proxyIP = proxyIP.toLowerCase();
+  let 地址 = proxyIP, 端口 = 443;
+  if (proxyIP.includes('.tp')) {
+    const tpMatch = proxyIP.match(/\.tp(\d+)/);
+    if (tpMatch) 端口 = parseInt(tpMatch[1], 10);
     return [地址, 端口];
+  }
+  if (proxyIP.includes(']:')) {
+    const parts = proxyIP.split(']:');
+    地址 = parts[0] + ']';
+    端口 = parseInt(parts[1], 10) || 端口;
+  } else if (proxyIP.includes(':') && !proxyIP.startsWith('[')) {
+    const colonIndex = proxyIP.lastIndexOf(':');
+    地址 = proxyIP.slice(0, colonIndex);
+    端口 = parseInt(proxyIP.slice(colonIndex + 1), 10) || 端口;
+  }
+  return [地址, 端口];
 }
 async function httpConnect(addressRemote, portRemote) {
-    const { username, password, hostname, port } = await 获取SOCKS5账号(我的SOCKS5账号);
-    const sock = await connect({ hostname, port });
-    const authHeader = username && password ? `Proxy-Authorization: Basic ${btoa(`${username}:${password}`)}\r\n` : '';
-    const connectRequest = `CONNECT ${addressRemote}:${portRemote} HTTP/1.1\r\n` +
-        `Host: ${addressRemote}:${portRemote}\r\n` +
-        authHeader +
-        `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\r\n` +
-        `Proxy-Connection: Keep-Alive\r\n` +
-        `Connection: Keep-Alive\r\n\r\n`;
-    const writer = sock.writable.getWriter();
-    try {
-        await writer.write(new TextEncoder().encode(connectRequest));
-    } catch (err) {
-        throw new Error(`发送HTTP CONNECT请求失败: ${err.message}`);
-    } finally {
-        writer.releaseLock();
-    }
-    const reader = sock.readable.getReader();
-    let responseBuffer = new Uint8Array(0);
-    try {
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) throw new Error('HTTP代理连接中断');
-            const newBuffer = new Uint8Array(responseBuffer.length + value.length);
-            newBuffer.set(responseBuffer);
-            newBuffer.set(value, responseBuffer.length);
-            responseBuffer = newBuffer;
-            const respText = new TextDecoder().decode(responseBuffer);
-            if (respText.includes('\r\n\r\n')) {
-                const headersEndPos = respText.indexOf('\r\n\r\n') + 4;
-                const headers = respText.substring(0, headersEndPos);
+  const { username, password, hostname, port } = await 获取SOCKS5账号(我的SOCKS5账号);
+  const sock = await connect({ hostname, port });
+  const authHeader = username && password ? `Proxy-Authorization: Basic ${btoa(`${username}:${password}`)}\r\n` : '';
+  const connectRequest = `CONNECT ${addressRemote}:${portRemote} HTTP/1.1\r\n` +
+    `Host: ${addressRemote}:${portRemote}\r\n` +
+    authHeader +
+    `User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36\r\n` +
+    `Proxy-Connection: Keep-Alive\r\n` +
+    `Connection: Keep-Alive\r\n\r\n`;
+  const writer = sock.writable.getWriter();
+  try {
+    await writer.write(new TextEncoder().encode(connectRequest));
+  } catch (err) {
+    throw new Error(`发送HTTP CONNECT请求失败: ${err.message}`);
+  } finally {
+    writer.releaseLock();
+  }
+  const reader = sock.readable.getReader();
+  let responseBuffer = new Uint8Array(0);
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) throw new Error('HTTP代理连接中断');
+      const newBuffer = new Uint8Array(responseBuffer.length + value.length);
+      newBuffer.set(responseBuffer);
+      newBuffer.set(value, responseBuffer.length);
+      responseBuffer = newBuffer;
+      const respText = new TextDecoder().decode(responseBuffer);
+      if (respText.includes('\r\n\r\n')) {
+        const headersEndPos = respText.indexOf('\r\n\r\n') + 4;
+        const headers = respText.substring(0, headersEndPos);
 
-                if (!headers.startsWith('HTTP/1.1 200') && !headers.startsWith('HTTP/1.0 200')) {
-                    throw new Error(`HTTP代理连接失败: ${headers.split('\r\n')[0]}`);
-                }
-                if (headersEndPos < responseBuffer.length) {
-                    const remainingData = responseBuffer.slice(headersEndPos);
-                    const { readable, writable } = new TransformStream();
-                    new ReadableStream({
-                        start(controller) {
-                            controller.enqueue(remainingData);
-                        }
-                    }).pipeTo(writable).catch(() => { });
-                    // @ts-ignore
-                    sock.readable = readable;
-                }
-                break;
-            }
+        if (!headers.startsWith('HTTP/1.1 200') && !headers.startsWith('HTTP/1.0 200')) {
+          throw new Error(`HTTP代理连接失败: ${headers.split('\r\n')[0]}`);
         }
-    } catch (err) {
-        throw new Error(`处理HTTP代理响应失败: ${err.message}`);
-    } finally {
-        reader.releaseLock();
+        if (headersEndPos < responseBuffer.length) {
+          const remainingData = responseBuffer.slice(headersEndPos);
+          const { readable, writable } = new TransformStream();
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(remainingData);
+            }
+          }).pipeTo(writable).catch(() => { });
+          // @ts-ignore
+          sock.readable = readable;
+        }
+        break;
+      }
     }
-    return sock;
+  } catch (err) {
+    throw new Error(`处理HTTP代理响应失败: ${err.message}`);
+  } finally {
+    reader.releaseLock();
+  }
+  return sock;
 }
 
 async function socks5Connect(targetHost, targetPort) {
-    const parsedSocks5Address = await 获取SOCKS5账号(我的SOCKS5账号);
-    const { username, password, hostname, port } = parsedSocks5Address;
-    const sock = connect({
-        hostname: hostname,
-        port: port
-    });
-    await sock.opened;
-    const w = sock.writable.getWriter();
-    const r = sock.readable.getReader();
-    await w.write(new Uint8Array([5, 2, 0, 2]));
-    const auth = (await r.read()).value;
-    if (auth[1] === 2 && username) {
-        const user = new TextEncoder().encode(username);
-        const pass = new TextEncoder().encode(password);
-        await w.write(new Uint8Array([1, user.length, ...user, pass.length, ...pass]));
-        await r.read();
-    }
-    const domain = new TextEncoder().encode(targetHost);
-    await w.write(new Uint8Array([5, 1, 0, 3, domain.length, ...domain,
-        targetPort >> 8, targetPort & 0xff
-    ]));
+  const parsedSocks5Address = await 获取SOCKS5账号(我的SOCKS5账号);
+  const { username, password, hostname, port } = parsedSocks5Address;
+  const sock = connect({
+    hostname: hostname,
+    port: port
+  });
+  await sock.opened;
+  const w = sock.writable.getWriter();
+  const r = sock.readable.getReader();
+  await w.write(new Uint8Array([5, 2, 0, 2]));
+  const auth = (await r.read()).value;
+  if (auth[1] === 2 && username) {
+    const user = new TextEncoder().encode(username);
+    const pass = new TextEncoder().encode(password);
+    await w.write(new Uint8Array([1, user.length, ...user, pass.length, ...pass]));
     await r.read();
-    w.releaseLock();
-    r.releaseLock();
-    return sock;
+  }
+  const domain = new TextEncoder().encode(targetHost);
+  await w.write(new Uint8Array([5, 1, 0, 3, domain.length, ...domain,
+    targetPort >> 8, targetPort & 0xff
+  ]));
+  await r.read();
+  w.releaseLock();
+  r.releaseLock();
+  return sock;
 }
