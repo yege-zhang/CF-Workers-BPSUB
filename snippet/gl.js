@@ -1,8 +1,5 @@
 const FIXED_UUID = '';// 建议修改为自己的规范化UUID，如不需要可留空
-let 反代IP = '';
-let 启用SOCKS5反代 = null;
-let 启用SOCKS5全局反代 = false;
-let 我的SOCKS5账号 = '';
+let 反代IP = '', 启用SOCKS5反代 = null, 启用SOCKS5全局反代 = false, 我的SOCKS5账号 = '', parsedSocks5Address = {};
 export default {
     async fetch(request) {
         try {
@@ -12,64 +9,15 @@ export default {
             if (upgradeHeader !== 'websocket') {
                 return new Response('Hello World!', { status: 200 });
             } else {
-                let parsedSocks5Address = {};
                 反代IP = 反代IP ? 反代IP : request.cf.colo + '.proxyIP.cmliuSSSS.NET';
-                我的SOCKS5账号 = url.searchParams.get('socks5') || url.searchParams.get('http');
-                启用SOCKS5全局反代 = url.searchParams.has('globalproxy') || 启用SOCKS5全局反代;
-                if (url.pathname.toLowerCase().includes('/socks5=') || (url.pathname.includes('/s5=')) || (url.pathname.includes('/gs5='))) {
-                    我的SOCKS5账号 = url.pathname.split('5=')[1];
-                    启用SOCKS5反代 = 'socks5';
-                    启用SOCKS5全局反代 = url.pathname.includes('/gs5=') ? true : 启用SOCKS5全局反代;
-                } else if (url.pathname.toLowerCase().includes('/http=')) {
-                    我的SOCKS5账号 = url.pathname.split('/http=')[1];
-                    启用SOCKS5反代 = 'http';
-                } else if (url.pathname.toLowerCase().includes('/socks://') || url.pathname.toLowerCase().includes('/socks5://') || url.pathname.toLowerCase().includes('/http://')) {
-                    启用SOCKS5反代 = (url.pathname.includes('/http://')) ? 'http' : 'socks5';
-                    我的SOCKS5账号 = url.pathname.split('://')[1].split('#')[0];
-                    if (我的SOCKS5账号.includes('@')) {
-                        const lastAtIndex = 我的SOCKS5账号.lastIndexOf('@');
-                        let userPassword = 我的SOCKS5账号.substring(0, lastAtIndex).replaceAll('%3D', '=');
-                        const base64Regex = /^(?:[A-Z0-9+/]{4})*(?:[A-Z0-9+/]{2}==|[A-Z0-9+/]{3}=)?$/i;
-                        if (base64Regex.test(userPassword) && !userPassword.includes(':')) userPassword = atob(userPassword);
-                        我的SOCKS5账号 = `${userPassword}@${我的SOCKS5账号.substring(lastAtIndex + 1)}`;
-                    }
-                    启用SOCKS5全局反代 = true;//开启全局SOCKS5
-                }
-
-                if (我的SOCKS5账号) {
-                    try {
-                        parsedSocks5Address = await 获取SOCKS5账号(我的SOCKS5账号);
-                        启用SOCKS5反代 = url.searchParams.get('http') ? 'http' : 启用SOCKS5反代;
-                    } catch (err) {
-                        启用SOCKS5反代 = null;
-                    }
-                } else {
-                    启用SOCKS5反代 = null;
-                }
-
-                if (url.searchParams.has('proxyip')) {
-                    反代IP = url.searchParams.get('proxyip');
-                    启用SOCKS5反代 = null;
-                } else if (url.pathname.toLowerCase().includes('/proxyip=')) {
-                    反代IP = url.pathname.toLowerCase().split('/proxyip=')[1];
-                    启用SOCKS5反代 = null;
-                } else if (url.pathname.toLowerCase().includes('/proxyip.')) {
-                    反代IP = `proxyip.${url.pathname.toLowerCase().split("/proxyip.")[1]}`;
-                    启用SOCKS5反代 = null;
-                } else if (url.pathname.toLowerCase().includes('/pyip=')) {
-                    反代IP = url.pathname.toLowerCase().split('/pyip=')[1];
-                    启用SOCKS5反代 = null;
-                } else if (url.pathname.toLowerCase().includes('/ip=')) {
-                    反代IP = url.pathname.toLowerCase().split('/ip=')[1];
-                    启用SOCKS5反代 = null;
-                }
-
+                await 反代参数获取(request);
+                const [反代IP地址, 反代IP端口] = await 解析地址端口(反代IP);
                 return await handleSPESSWebSocket(request, {
                     parsedSocks5Address,
-                    启用SOCKS5反代,
-                    启用SOCKS5全局反代,
-                    反代IP,
-                    ProxyPort: 443,
+                    enableSocks: 启用SOCKS5反代,
+                    enableGlobalSocks: 启用SOCKS5全局反代,
+                    ProxyIP: 反代IP地址,
+                    ProxyPort: 反代IP端口
                 });
             }
         } catch (err) {
@@ -81,9 +29,9 @@ export default {
 async function handleSPESSWebSocket(request, config) {
     const {
         parsedSocks5Address,
-        启用SOCKS5反代,
-        启用SOCKS5全局反代,
-        反代IP,
+        enableSocks,
+        enableGlobalSocks,
+        ProxyIP,
         ProxyPort
     } = config;
     const ws配对 = new WebSocketPair();
@@ -156,7 +104,7 @@ async function handleSPESSWebSocket(request, config) {
                 return tcpSocket;
             }
             async function connectAndWriteSocks(address, port) {
-                const tcpSocket = 启用SOCKS5反代 === 'socks5'
+                const tcpSocket = enableSocks === 'socks5'
                     ? await socks5Connect(result.addressType, address, port, parsedSocks5Address)
                     : await httpConnect(result.addressType, address, port, parsedSocks5Address);
                 remoteSocket = tcpSocket;
@@ -168,13 +116,12 @@ async function handleSPESSWebSocket(request, config) {
             async function retry() {
                 try {
                     let tcpSocket;
-                    if (启用SOCKS5反代 === 'socks5') {
+                    if (enableSocks === 'socks5') {
                         tcpSocket = await socks5Connect(result.addressType, result.addressRemote, result.portRemote, parsedSocks5Address);
-                    } else if (启用SOCKS5反代 === 'http') {
+                    } else if (enableSocks === 'http') {
                         tcpSocket = await httpConnect(result.addressType, result.addressRemote, result.portRemote, parsedSocks5Address);
                     } else {
-                        const [反代IP地址, 反代IP端口] = await 解析地址端口(反代IP);
-                        tcpSocket = await connect({ hostname: 反代IP地址, port: 反代IP端口 }, { allowHalfOpen: true });
+                        tcpSocket = await connect({ hostname: ProxyIP, port: ProxyPort }, { allowHalfOpen: true });
                     }
                     remoteSocket = tcpSocket;
                     const writer = tcpSocket.writable.getWriter();
@@ -192,7 +139,7 @@ async function handleSPESSWebSocket(request, config) {
                 }
             }
             try {
-                if (启用SOCKS5全局反代) {
+                if (enableGlobalSocks) {
                     const tcpSocket = await connectAndWriteSocks(result.addressRemote, result.portRemote);
                     pipeRemoteToWebSocket(tcpSocket, serverWS, vlessRespHeader, retry);
                 } else {
@@ -425,39 +372,6 @@ function closeSocket(socket) {
 function formatUUID(bytes) {
     const hex = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-async function 获取SOCKS5账号(address) {
-    const lastAtIndex = address.lastIndexOf("@");
-    let [latter, former] = lastAtIndex === -1 ? [address, undefined] : [address.substring(lastAtIndex + 1), address.substring(0, lastAtIndex)];
-    let username, password, hostname, port;
-    if (former) {
-        const formers = former.split(":");
-        if (formers.length !== 2) {
-            throw new Error('无效的 SOCKS 地址格式：认证部分必须是 "username:password" 的形式');
-        }
-        [username, password] = formers;
-    }
-    const latters = latter.split(":");
-    if (latters.length > 2 && latter.includes("]:")) {
-        port = Number(latter.split("]:")[1].replace(/[^\d]/g, ''));
-        hostname = latter.split("]:")[0] + "]";
-    } else if (latters.length === 2) {
-        port = Number(latters.pop().replace(/[^\d]/g, ''));
-        hostname = latters.join(":");
-    } else {
-        port = 80;
-        hostname = latter;
-    }
-
-    if (isNaN(port)) {
-        throw new Error('无效的 SOCKS 地址格式：端口号必须是数字');
-    }
-    const regex = /^\[.*\]$/;
-    if (hostname.includes(":") && !regex.test(hostname)) {
-        throw new Error('无效的 SOCKS 地址格式：IPv6 地址必须用方括号括起来，如 [2001:db8::1]');
-    }
-    return { username, password, hostname, port };
 }
 
 async function socks5Connect(addressType, addressRemote, portRemote, parsedSocks5Address) {
@@ -709,4 +623,95 @@ async function 解析地址端口(proxyIP) {
         端口 = parseInt(proxyIP.slice(colonIndex + 1), 10) || 端口;
     }
     return [地址, 端口];
+}
+
+async function 反代参数获取(request) {
+    const url = new URL(request.url);
+    const { pathname, searchParams } = url;
+    const pathLower = pathname.toLowerCase();
+
+    // 初始化
+    我的SOCKS5账号 = searchParams.get('socks5') || searchParams.get('http') || null;
+    启用SOCKS5全局反代 = searchParams.has('globalproxy') || false;
+
+    // 统一处理反代IP参数 (优先级最高,使用正则一次匹配)
+    const proxyMatch = pathLower.match(/\/(proxyip[.=]|pyip=|ip=)(.+)/);
+    if (searchParams.has('proxyip')) {
+        const 路参IP = searchParams.get('proxyip');
+        反代IP = 路参IP.includes(',') ? 路参IP.split(',')[Math.floor(Math.random() * 路参IP.split(',').length)] : 路参IP;
+        return;
+    } else if (proxyMatch) {
+        const 路参IP = proxyMatch[1] === 'proxyip.' ? `proxyip.${proxyMatch[2]}` : proxyMatch[2];
+        反代IP = 路参IP.includes(',') ? 路参IP.split(',')[Math.floor(Math.random() * 路参IP.split(',').length)] : 路参IP;
+        return;
+    }
+
+    // 处理SOCKS5/HTTP代理参数
+    let socksMatch;
+    if ((socksMatch = pathname.match(/\/(socks5?|http):\/?\/?(.+)/i))) {
+        // 格式: /socks5://... 或 /http://...
+        启用SOCKS5反代 = socksMatch[1].toLowerCase() === 'http' ? 'http' : 'socks5';
+        我的SOCKS5账号 = socksMatch[2].split('#')[0];
+        启用SOCKS5全局反代 = true;
+
+        // 处理Base64编码的用户名密码
+        if (我的SOCKS5账号.includes('@')) {
+            const atIndex = 我的SOCKS5账号.lastIndexOf('@');
+            let userPassword = 我的SOCKS5账号.substring(0, atIndex).replaceAll('%3D', '=');
+            if (/^(?:[A-Z0-9+/]{4})*(?:[A-Z0-9+/]{2}==|[A-Z0-9+/]{3}=)?$/i.test(userPassword) && !userPassword.includes(':')) {
+                userPassword = atob(userPassword);
+            }
+            我的SOCKS5账号 = `${userPassword}@${我的SOCKS5账号.substring(atIndex + 1)}`;
+        }
+    } else if ((socksMatch = pathname.match(/\/(g?s5|socks5|g?http)=(.+)/i))) {
+        // 格式: /socks5=... 或 /s5=... 或 /gs5=... 或 /http=... 或 /ghttp=...
+        const type = socksMatch[1].toLowerCase();
+        我的SOCKS5账号 = socksMatch[2];
+        启用SOCKS5反代 = type.includes('http') ? 'http' : 'socks5';
+        启用SOCKS5全局反代 = type.startsWith('g') || 启用SOCKS5全局反代; // gs5 或 ghttp 开头启用全局
+    }
+
+    // 解析SOCKS5地址
+    if (我的SOCKS5账号) {
+        try {
+            parsedSocks5Address = await 获取SOCKS5账号(我的SOCKS5账号);
+            启用SOCKS5反代 = searchParams.get('http') ? 'http' : 启用SOCKS5反代;
+        } catch (err) {
+            console.error('解析SOCKS5地址失败:', err.message);
+            启用SOCKS5反代 = null;
+        }
+    } else 启用SOCKS5反代 = null;
+}
+
+async function 获取SOCKS5账号(address) {
+    const lastAtIndex = address.lastIndexOf("@");
+    let [latter, former] = lastAtIndex === -1 ? [address, undefined] : [address.substring(lastAtIndex + 1), address.substring(0, lastAtIndex)];
+    let username, password, hostname, port;
+    if (former) {
+        const formers = former.split(":");
+        if (formers.length !== 2) {
+            throw new Error('无效的 SOCKS 地址格式：认证部分必须是 "username:password" 的形式');
+        }
+        [username, password] = formers;
+    }
+    const latters = latter.split(":");
+    if (latters.length > 2 && latter.includes("]:")) {
+        port = Number(latter.split("]:")[1].replace(/[^\d]/g, ''));
+        hostname = latter.split("]:")[0] + "]";
+    } else if (latters.length === 2) {
+        port = Number(latters.pop().replace(/[^\d]/g, ''));
+        hostname = latters.join(":");
+    } else {
+        port = 80;
+        hostname = latter;
+    }
+
+    if (isNaN(port)) {
+        throw new Error('无效的 SOCKS 地址格式：端口号必须是数字');
+    }
+    const regex = /^\[.*\]$/;
+    if (hostname.includes(":") && !regex.test(hostname)) {
+        throw new Error('无效的 SOCKS 地址格式：IPv6 地址必须用方括号括起来，如 [2001:db8::1]');
+    }
+    return { username, password, hostname, port };
 }
